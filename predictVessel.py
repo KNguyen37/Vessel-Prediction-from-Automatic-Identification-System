@@ -13,6 +13,9 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import adjusted_rand_score, make_scorer
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
+from sklearn.metrics import calinski_harabasz_score
+import matplotlib.pyplot as plt
+from sklearn.metrics import silhouette_score
 
 random.seed(100)
 
@@ -31,21 +34,51 @@ def predictWithK(testFeatures, numVessels, trainFeatures=None,
 def predictWithoutK(testFeatures, trainFeatures, trainLabels):
     # Try range of K values
     # Define ARI scoring
-    ari_scorer = make_scorer(adjusted_rand_score)
+    # ari_scorer = make_scorer(adjusted_rand_score)
 
-    # Gridsearch cross-validation 
-    kmeans = KMeans()
-    param_grid = {'n_clusters': range(2, 31)}
-    grid = GridSearchCV(kmeans, param_grid, cv=5, scoring=ari_scorer)
+    # # Gridsearch cross-validation 
+    # kmeans = KMeans()
+    # param_grid = {'n_clusters': range(2, 31)}
+    # grid = GridSearchCV(kmeans, param_grid, cv=5, scoring=ari_scorer)
 
-    grid.fit(trainFeatures, trainLabels)
-    best_km = grid.best_estimator_
-    best_num_clusters = best_km.n_clusters
+    # grid.fit(trainFeatures, trainLabels)
+    # best_km = grid.best_estimator_
+    # best_num_clusters = best_km.n_clusters
     
-    return predictWithK(testFeatures, best_num_clusters)
+    # return predictWithK(testFeatures, best_num_clusters)
 
     # # Arbitrarily assume 20 vessels
     # return predictWithK(testFeatures, 20, trainFeatures, trainLabels)
+###
+    # Try different K values from 2 to 20
+    k_range = range(15, 30)  
+    elbow_k = find_elbow_k(trainFeatures, k_range) 
+    
+    # Predict labels using the elbow K  
+    return predictWithK(testFeatures, elbow_k)
+    
+    
+def find_elbow_k(train_features, k_range):
+
+    sil_scores = []
+
+    for k in k_range:
+        kmeans = KMeans(n_clusters=k)  
+        kmeans.fit(train_features)
+
+        sil_score = silhouette_score(train_features, kmeans.labels_)
+        sil_scores.append(sil_score)
+
+    # Find index of max difference 
+    max_diff_idx = find_max_diff_index(sil_scores)
+
+    return k_range[max_diff_idx]
+
+
+def find_max_diff_index(scores):
+    score_diffs = [scores[i+1] - scores[i] for i in range(len(scores)-1)]
+    max_ix = score_diffs.index(max(score_diffs))
+    return max_ix
 
 # Run this code only if being used as a script, not being imported
 if __name__ == "__main__":
