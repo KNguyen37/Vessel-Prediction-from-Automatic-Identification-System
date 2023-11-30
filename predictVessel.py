@@ -6,11 +6,15 @@ number of vessels is not specified, assume 20 vessels.
 @author: Kevin S. Xu
 """
 
+import random
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.metrics import adjusted_rand_score
+from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import adjusted_rand_score, make_scorer
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
+
+random.seed(100)
 
 def predictWithK(testFeatures, numVessels, trainFeatures=None, 
                  trainLabels=None):
@@ -24,11 +28,24 @@ def predictWithK(testFeatures, numVessels, trainFeatures=None,
     
     return predVessels
 
-def predictWithoutK(testFeatures, trainFeatures=None, trainLabels=None):
-    # Unsupervised prediction, so training data is unused
+def predictWithoutK(testFeatures, trainFeatures, trainLabels):
+    # Try range of K values
+    # Define ARI scoring
+    ari_scorer = make_scorer(adjusted_rand_score)
+
+    # Gridsearch cross-validation 
+    kmeans = KMeans()
+    param_grid = {'n_clusters': range(2, 31)}
+    grid = GridSearchCV(kmeans, param_grid, cv=5, scoring=ari_scorer)
+
+    grid.fit(trainFeatures, trainLabels)
+    best_km = grid.best_estimator_
+    best_num_clusters = best_km.n_clusters
     
-    # Arbitrarily assume 20 vessels
-    return predictWithK(testFeatures, 20, trainFeatures, trainLabels)
+    return predictWithK(testFeatures, best_num_clusters)
+
+    # # Arbitrarily assume 20 vessels
+    # return predictWithK(testFeatures, 20, trainFeatures, trainLabels)
 
 # Run this code only if being used as a script, not being imported
 if __name__ == "__main__":
@@ -50,7 +67,7 @@ if __name__ == "__main__":
     ariWithK = adjusted_rand_score(labels, predVesselsWithK)
     
     # Prediction without specified number of vessels
-    predVesselsWithoutK = predictWithoutK(features)
+    predVesselsWithoutK = predictWithoutK(features, features, labels)
     predNumVessels = np.unique(predVesselsWithoutK).size
     ariWithoutK = adjusted_rand_score(labels, predVesselsWithoutK)
     
@@ -65,4 +82,4 @@ if __name__ == "__main__":
     plt.title('Vessel tracks by cluster without K')
     plotVesselTracks(features[:,[2,1]], labels)
     plt.title('Vessel tracks by label')
-    
+    # plt.show()
