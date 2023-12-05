@@ -13,6 +13,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans, SpectralClustering
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.metrics.pairwise import rbf_kernel
+from sklearn.preprocessing import MinMaxScaler
 import math
 
 def predictWithK(testFeatures, numVessels, s, trainFeatures=None, 
@@ -61,8 +62,8 @@ def predictWithK(testFeatures, numVessels, s, trainFeatures=None,
             later_data = data[later_time_indices]
             time_diff = later_data[:, 0] - t1
             acc_approx = np.where(time_diff != 0, (later_data[:, 3] - v1) / time_diff, 0)
-            x2_pred = x1 + np.cos(theta1) * (v1 * time_diff + 0.5 * acc_approx * time_diff**2)
-            y2_pred = y1 + np.sin(theta1) * (v1 * time_diff + 0.5 * acc_approx * time_diff**2)
+            x2_pred = x1 + np.sin(theta1) * (v1 * time_diff + 0.5 * acc_approx * time_diff**2)
+            y2_pred = y1 + np.cos(theta1) * (v1 * time_diff + 0.5 * acc_approx * time_diff**2)
             distances[i, later_time_indices] = np.sqrt((x2_pred - later_data[:, 2])**2 + (y2_pred - later_data[:, 1])**2)
         distances = 0.5 * (distances + distances.T)
         print(distances)
@@ -93,8 +94,13 @@ def predictWithK(testFeatures, numVessels, s, trainFeatures=None,
         # max_val = np.max(distances)
         # scaled_distances = (distances - min_val) / (max_val - min_val)
         # affinity_matrix = np.ones_like(scaled_distances) - scaled_distances
-        squared_distances = distances ** 2
-        affinity_matrix = np.exp(-squared_distances / (2 * s**2))
+        # squared_distances = distances ** 2
+        # affinity_matrix = np.exp(-squared_distances / (2 * s**2))
+
+        distances[distances == 0] = 1
+        affinity_matrix = np.minimum(1 / distances, 1)
+        affinity_matrix /= affinity_matrix.sum(axis=1, keepdims=True)
+        affinity_matrix = 0.5 * (affinity_matrix + affinity_matrix.T)
         print(affinity_matrix)
         return affinity_matrix
 
