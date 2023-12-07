@@ -71,7 +71,7 @@ if __name__ == "__main__":
 
     l_max = None
     m_max = None
-    numVessels = None
+    numVessels = 1
     min_score = math.inf
     for l in ("single", "complete", "average", "weighted"):
         for m in ('braycurtis', 'canberra', 'chebyshev', 'cityblock', 'correlation', 'cosine', 'dice', 'euclidean', 'hamming', 'jaccard', 'mahalanobis', 'matching', 'minkowski', 'rogerstanimoto', 'russellrao', 'seuclidean', 'sokalmichener', 'sokalsneath', 'sqeuclidean', 'yule'):
