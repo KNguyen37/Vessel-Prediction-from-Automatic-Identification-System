@@ -13,7 +13,7 @@ from utils import loadData, plotVesselTracks
 from predictVessel import predictWithK, predictWithoutK
 
 #%% Load training and test data. Training data may not necessarily be used.
-testData = loadData('set2.csv')
+testData = loadData('set2noVID.csv')
 testFeatures = testData[:,2:]
 testLabels = testData[:,1]
 trainData = loadData('set1.csv')
