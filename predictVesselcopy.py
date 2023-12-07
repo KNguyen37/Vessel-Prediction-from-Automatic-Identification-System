@@ -22,109 +22,47 @@ from sklearn.preprocessing import StandardScaler
 from scipy.spatial.distance import cdist
 from sklearn.metrics.pairwise import haversine_distances
 # from sklearn.neighbors import DistanceMetric
+from sklearn.naive_bayes import LabelBinarizer
+
+import tensorflow as tf
+from tensorflow import keras
+from keras.models import Sequential
+from keras.layers import LSTM, Dense
+
 import matplotlib.pyplot as plt
 import math
+
+def create_lstm_model(num_vessels):
+        model = Sequential()
+        model.add(LSTM(64, return_sequences=True, input_shape=(None, num_features)))
+        model.add(LSTM(32))
+        model.add(Dense(num_vessels, activation='softmax'))
+        model.compile(loss='categorical_crossentropy', optimizer='adam')
+        return model
 
 def predictWithK(testFeatures, numVessels, gamma, affinity, n_neighbors, degree, trainFeatures=None, 
                  trainLabels=None):
     # Unsupervised prediction, so training data is unused
-    # scaler = StandardScaler()
-    # testFeatures = scaler.fit_transform(testFeatures)
-    # km = KMeans(n_clusters=numVessels, init='k-means++', n_init=10, 
-    #             random_state=100)
-    # predVessels = km.fit_predict(testFeatures)
-    # return predVessels
 
-
-    testFeatures1 = testFeatures.copy()
-
-    def preprocess_data(data):
-        # data[:, 2] = data[:, 2] * 60.0 * np.cos(np.deg2rad(data[:, 1])) # x (longitude) in nautical miles
-        # data[:, 1] = data[:, 1] * 60 # y (latitude) in nautical miles
-        data[:, 2] = data[:, 2] * 60.0 # x (longitude) in nautical miles
-        # data[:, 3] = data[:, 3] / 3600.0 # v in nautical miles per second
-        # data[:, 4] = np.deg2rad(data[:, 4] / 10.0) # theta in radians
-
-        data[:, 1] = data[:, 1] * 60.0 # y (latitude) in nautical miles
-        data[:, 3] = data[:, 3] / 36000.0 # v in nautical miles per second
-        data[:, 4] = np.deg2rad(data[:, 4] / 10.0) # theta in radians
-        return data
-
-    def construct_distance_matrix(data):
-        num_points = len(data)
-        distances = np.zeros((num_points, num_points))
-
-        # data[:, 2] = data[:, 2] * 60.0 * np.cos(np.deg2rad(data[:, 1])) # x (longitude) in nautical miles
-        # data[:, 1] = data[:, 1] * 60 # y (latitude) in nautical miles
-        data[:, 2] = data[:, 2] * 60.0 # x (longitude) in nautical miles
-        # data[:, 3] = data[:, 3] / 3600.0 # v in nautical miles per second
-        # data[:, 4] = np.deg2rad(data[:, 4] / 10.0) # theta in radians
-
-        data[:, 1] = data[:, 1] * 60.0 # y (latitude) in nautical miles
-        data[:, 3] = data[:, 3] / 36000.0 # v in nautical miles per second
-        data[:, 4] = np.deg2rad(data[:, 4] / 10.0) # theta in radians
-
-        t, y, x, v, theta = data[:, 0], data[:, 1], data[:, 2], data[:, 3], data[:, 4]
-        for i in range(num_points):
-            t1, y1, x1, v1, theta1 = t[i], y[i], x[i], v[i], theta[i]
-            time_diff = t - t1
-            acc_approx = np.where(time_diff == 0, 0, (data[:, 3] - v1) / time_diff)
-            x2_pred = x1 + np.sin(theta1) * (v1 * time_diff + 0.5 * acc_approx * time_diff**2)
-            y2_pred = y1 + np.cos(theta1) * (v1 * time_diff + 0.5 * acc_approx * time_diff**2)
-
-            distances[:, i] = np.sqrt((x2_pred - data[:, 2])**2 + (y2_pred - data[:, 1])**2)
+        # Define number of features 
+        num_features = 7
         
-        distances = np.triu(distances) + np.triu(distances, k=1).T
+        # Reshape inputs   
+        test_sequences = np.reshape(testFeatures, (len(testFeatures), 1, num_features))
+        
+        # Create one-hot encoded outputs
+        encoder = LabelBinarizer()
+        train_targets = encoder.fit_transform(np.arange(numVessels))
 
-        # distances_flat = distances.flatten()
-        # scaler = MinMaxScaler()
-        # std_distances_flat = scaler.fit_transform(distances_flat.reshape(-1, 1))
-        # std_distances = std_distances_flat.reshape(distances.shape)
+        # Create and train LSTM model
+        lstm_model = create_lstm_model(numVessels) 
+        lstm_model.fit(test_sequences, train_targets)
 
-        print("First 5")
-        print(distances[:5])
-        print("Last 5")
-        print(distances[-5:])
-        return distances
+        # Make predictions on test set
+        preds = lstm_model.predict(test_sequences)
+        pred_ids = np.argmax(preds, axis=-1)
 
-
-
-    testFeatures1 = preprocess_data(testFeatures1)
-    # distance_matrix = construct_distance_matrix(testFeatures1)
-    # print(np.shape(distance_matrix))
-    # distance_matrix = squareform(distance_matrix)
-    # print("distance matrix")
-    # print(distance_matrix[-5:])
-    # print(distance_matrix[:5])
-
-    # linkage_matrix = linkage(distance_matrix, method=l)
-    # predVessels = fcluster(linkage_matrix, numVessels, criterion="maxclust")
-
-    cl = SpectralClustering(n_clusters=numVessels, random_state=42, n_init=10, affinity=affinity, gamma=gamma, n_neighbors=n_neighbors, degree=degree)
-    predVessels = cl.fit_predict(testFeatures1)
-    return predVessels
-
-
-    scaler = StandardScaler()
-    testFeatures = scaler.fit_transform(testFeatures)
-    testFeatures = pd.DataFrame(testFeatures, columns=["SEQUENCE_DTTM", "LAT", "LON", "SPEED_OVER_GROUND", "COURSE_OVER_GROUND"])
-
-    # testFeatures["TIME_INTERVAL"] = testFeatures["SEQUENCE_DTTM"].diff()
-    # testFeatures.loc[0, "TIME_INTERVAL"] = 0
-    # testFeatures["SPEED_X"] = testFeatures["SPEED_OVER_GROUND"] * np.sin(np.deg2rad(testFeatures["COURSE_OVER_GROUND"] / 10))
-    # testFeatures["SPEED_Y"] = testFeatures["SPEED_OVER_GROUND"] * np.cos(np.deg2rad(testFeatures["COURSE_OVER_GROUND"] / 10))
-
-    # print(testFeatures.loc[testFeatures["ACC_X"].isnull()])
-    print(testFeatures)
-    testFeatures = testFeatures.to_numpy()
-    # scaler = StandardScaler()
-    # testFeatures = scaler.fit_transform(testFeatures)
-    # kmeans = KMeans(n_clusters=numVessels, init='k-means++', n_init=10, random_state=100)
-    # predVessels = kmeans.fit_predict(testFeatures)
-    model = AgglomerativeClustering(n_clusters=numVessels, linkage="ward")
-    predVessels = model.fit_predict(testFeatures)
-
-    return predVessels
+        return encoder.inverse_transform(pred_ids)
 
 def predictWithoutK(testFeatures, trainFeatures=None, trainLabels=None):
     # Unsupervised prediction, so training data is unused
