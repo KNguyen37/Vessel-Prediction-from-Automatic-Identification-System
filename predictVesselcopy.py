@@ -36,8 +36,49 @@ def predictWithK(testFeatures, numVessels, l, m, trainFeatures=None,
                  trainLabels=None):
     # Unsupervised prediction, so training data is unused
 
-    scaler = MinMaxScaler()
+    def preprocess_data(data):
+        # data[:, 1] = data[:, 3] * 60.0 # y (latitude) in nautical miles
+        # data[:, 2] = data[:, 4] * 60.0 # x (longitude) in nautical miles
+        # data[:, 3] = data[:, 5] / 36000.0 # v in nautical miles per second
+        # data[:, 4] = np.deg2rad(data[:, 6] / 10.0) # theta in radians
+        # Time sinusoids
+        # hours = np.sin(2*np.pi* (data[:, 2].astype("datetime64[h]").astype(float)) / 24)
+        # hours = hours[:, np.newaxis]
+        
+        # DistanceTravelled  
+        # dist_diffs = np.linalg.norm(np.diff(data[:, [3,4]], axis=0), axis=1)
+        # dist_diffs = np.hstack([dist_diffs, np.nan])
+        # dist_diffs = dist_diffs[:, np.newaxis]
+
+        # Neighbor speed
+        nn = NearestNeighbors(5).fit(data[:, [1, 2]])
+        neighbor_indices = nn.kneighbors(data[:, [1, 2]], return_distance=False)[:,1:]
+        neighbor_speed = data[neighbor_indices, 3].mean(axis=1)[:, np.newaxis]
+        neighbor_course = data[neighbor_indices, 4].mean(axis=1)[:, np.newaxis]
+        
+        cog = data[:, -1] # course over ground
+        # Difference in COG between reports
+        cog_diff = np.abs(np.diff(cog))
+        cog_diff = np.hstack([cog_diff, np.zeros(1)])[:,None]
+
+        # Cyclic encoding 
+        cog_sin = np.sin(2*np.pi*cog/360)[:,None]
+        cog_cos = np.cos(2*np.pi*cog/360)[:,None]
+        
+        # Directional velocity
+        velocity = data[:, 3][:,None] # speed over ground
+        dir_velocity = velocity * cog_cos
+        
+        # # Append features
+        data_ext = np.hstack([data, neighbor_speed, dir_velocity, cog_sin, cog_cos, cog_diff])
+        return data_ext
+
+
+    testFeatures = preprocess_data(testFeatures)
+
+    scaler = StandardScaler()
     testFeatures = scaler.fit_transform(testFeatures)
+
     linkage_matrix = linkage(testFeatures, method=l, metric=m)
     predVessels = fcluster(linkage_matrix, numVessels, criterion="maxclust")
     return predVessels
