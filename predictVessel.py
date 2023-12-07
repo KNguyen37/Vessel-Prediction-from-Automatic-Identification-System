@@ -25,7 +25,7 @@ from sklearn.metrics.pairwise import haversine_distances
 import matplotlib.pyplot as plt
 import math
 
-def predictWithK(testFeatures, numVessels, gamma, affinity, n_neighbors, degree, trainFeatures=None, 
+def predictWithK(testFeatures, numVessels, trainFeatures=None, 
                  trainLabels=None):
     # Unsupervised prediction, so training data is unused
     # scaler = StandardScaler()
@@ -90,18 +90,15 @@ def predictWithK(testFeatures, numVessels, gamma, affinity, n_neighbors, degree,
 
 
     testFeatures1 = preprocess_data(testFeatures1)
-    # distance_matrix = construct_distance_matrix(testFeatures1)
-    # print(np.shape(distance_matrix))
-    # distance_matrix = squareform(distance_matrix)
-    # print("distance matrix")
-    # print(distance_matrix[-5:])
-    # print(distance_matrix[:5])
+    distance_matrix = construct_distance_matrix(testFeatures1)
+    print(np.shape(distance_matrix))
+    distance_matrix = squareform(distance_matrix)
+    print("distance matrix")
+    print(distance_matrix[-5:])
+    print(distance_matrix[:5])
 
-    # linkage_matrix = linkage(distance_matrix, method=l)
-    # predVessels = fcluster(linkage_matrix, numVessels, criterion="maxclust")
-
-    cl = SpectralClustering(n_clusters=numVessels, random_state=42, n_init=10, affinity=affinity, gamma=gamma, n_neighbors=n_neighbors, degree=degree)
-    predVessels = cl.fit_predict(testFeatures1)
+    linkage_matrix = linkage(distance_matrix, method="average")
+    predVessels = fcluster(linkage_matrix, numVessels, criterion="maxclust")
     return predVessels
 
 
@@ -158,47 +155,6 @@ if __name__ == "__main__":
     #         l_max = l
     # print("ARI:", ari)
     # print("l final:", l_max)
-
-    # gamma, affinity, n_neighbors, degree
-    g_max = None
-    a_max = None
-    n_max = None
-    d_max = None
-    ari=-math.inf
-    for g in np.arange(0.05, 1.05, 0.05):
-        for a in ('nearest_neighbors', 'rbf', 'poly', 'polynomial', 'additive_chi2', 'linear', 'chi2', 'laplacian', 'sigmoid', 'cosine'):
-            if a == 'nearest_neighbors':
-                for n in np.arange(5, 31, 1):
-                    predVesselsWithK = predictWithK(features, numVessels, g, a, n, 1)
-                    ariWithK = adjusted_rand_score(labels, predVesselsWithK)
-                    if ariWithK > ari:
-                        ari = ariWithK
-                        g_max = g
-                        a_max = a
-                        n_max = n
-            elif a == 'polynomial':
-                for d in np.arange(2, 11, 1):
-                    predVesselsWithK = predictWithK(features, numVessels, g, a, 1, d)
-                    ariWithK = adjusted_rand_score(labels, predVesselsWithK)
-                    if ariWithK > ari:
-                        ari = ariWithK
-                        g_max = g
-                        a_max = a
-                        d_max = d
-            else:
-                predVesselsWithK = predictWithK(features, numVessels, g, a, 1, 1)
-                ariWithK = adjusted_rand_score(labels, predVesselsWithK)
-                if ariWithK > ari:
-                    ari = ariWithK
-                    g_max = g
-                    a_max = a
-
-    print("ari", ari)
-    print("g_max", g_max)
-    print("a_max", a_max)
-    print("n_max", n_max)
-    print("d_max", d_max)
-
     
     # predVesselsWithK = predictWithK(features, numVessels)
     # ariWithK = adjusted_rand_score(labels, predVesselsWithK)
