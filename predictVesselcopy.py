@@ -20,7 +20,7 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.cluster import DBSCAN, SpectralClustering
 from sklearn.preprocessing import StandardScaler
 from scipy.spatial.distance import cdist
-from sklearn.metrics import silhouette_score
+from sklearn.metrics import silhouette_score, davies_bouldin_score
 from sklearn.naive_bayes import LabelBinarizer
 from sklearn.neighbors import NearestNeighbors
 import tensorflow as tf
@@ -76,24 +76,24 @@ def predictWithK(testFeatures, numVessels, l, m, trainFeatures=None,
 
     testFeatures = preprocess_data(testFeatures)
 
-    scaler = StandardScaler()
-    testFeatures = scaler.fit_transform(testFeatures)
+    # scaler = StandardScaler()
+    # testFeatures = scaler.fit_transform(testFeatures)
 
     linkage_matrix = linkage(testFeatures, method=l, metric=m)
     predVessels = fcluster(linkage_matrix, numVessels, criterion="maxclust")
-    print(predVessels)
     return predVessels
 
 def predictWithoutK(testFeatures, l, m, trainFeatures=None, trainLabels=None):
     # Unsupervised prediction, so training data is unused
-    max_score = -math.inf
+    min_score = math.inf
     optimal_k = 1
     for k in np.arange(2, 26, 1):
         labels = predictWithK(testFeatures, k, l, m, trainFeatures, trainLabels)
-        score = silhouette_score(testFeatures, labels, metric=m)
-        if max_score < score:
-            max_score = score
-            optimal_k = k
+        if np.unique(labels).size > 1:
+            score = davies_bouldin_score(testFeatures, labels)
+            if min_score > score:
+                min_score = score
+                optimal_k = k
     return predictWithK(testFeatures, optimal_k, l, m, trainFeatures, trainLabels)
 
 # Run this code only if being used as a script, not being imported
@@ -113,20 +113,21 @@ if __name__ == "__main__":
     l_max = None
     m_max = None
     numVessels = 1
-    max_score = -math.inf
+    min_score = math.inf
     for l in ("single", "complete", "average", "weighted"):
-        for m in ('braycurtis', 'canberra', 'chebyshev', 'cityblock', 'correlation', 'cosine', 'dice', 'euclidean', 'hamming', 'jaccard', 'mahalanobis', 'matching', 'minkowski', 'rogerstanimoto', 'russellrao', 'seuclidean', 'sokalmichener', 'sokalsneath', 'sqeuclidean', 'yule'):
+        for m in ('braycurtis', 'canberra', 'chebyshev', 'cityblock', 'correlation', 'cosine', 'euclidean', 'hamming', 'jaccard', 'mahalanobis', 'minkowski', 'seuclidean', 'sqeuclidean', 'yule'):
             predVesselsWithoutK = predictWithoutK(features3, l, m)
             predNumVessels = np.unique(predVesselsWithoutK).size
-            score = silhouette_score(features3, predVesselsWithoutK, metric=m)
-            if max_score < score:
-                max_score = score
-                l_max = l
-                m_max = m
-                numVessels = predNumVessels
-                print("max_score", max_score, "method", l_max, "metric", m_max, "pred_vessels", predNumVessels)
+            if predNumVessels > 1:
+                score = davies_bouldin_score(features3, predVesselsWithoutK)
+                if min_score > score:
+                    min_score = score
+                    l_max = l
+                    m_max = m
+                    numVessels = predNumVessels
+                    print("min_score", min_score, "method", l_max, "metric", m_max, "pred_vessels", predNumVessels)
         
-    print("Final score:", max_score)
+    print("Final score:", min_score)
     print("Final method:", l_max)
     print("Final metric:", m_max)
     print("Final pred_vessels", numVessels)
