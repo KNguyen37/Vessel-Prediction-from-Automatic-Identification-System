@@ -20,7 +20,7 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.cluster import DBSCAN, SpectralClustering
 from sklearn.preprocessing import StandardScaler
 from scipy.spatial.distance import cdist
-from sklearn.metrics import silhouette_score
+from sklearn.metrics import silhouette_score, davies_bouldin_score
 from sklearn.naive_bayes import LabelBinarizer
 from sklearn.neighbors import NearestNeighbors
 # import tensorflow as tf
@@ -77,81 +77,25 @@ def predictWithK(testFeatures, numVessels, trainFeatures=None,
     # scaler = StandardScaler()
     # testFeatures = scaler.fit_transform(testFeatures)
 
-    linkage_matrix = linkage(testFeatures, method="complete", metric="correlation")
+    # scaler = StandardScaler()
+    # testFeatures = scaler.fit_transform(testFeatures)
+
+    linkage_matrix = linkage(testFeatures, method=l, metric=m)
     predVessels = fcluster(linkage_matrix, numVessels, criterion="maxclust")
-    print(predVessels)
     return predVessels
 
 def predictWithoutK(testFeatures, trainFeatures=None, trainLabels=None):
     # Unsupervised prediction, so training data is unused
-    # max_score = -math.inf
-    # optimal_k = 1
-    # for k in np.arange(2, 26, 1):
-    #     labels = predictWithK(testFeatures, k, l, m, trainFeatures, trainLabels)
-    #     score = silhouette_score(testFeatures, labels, metric=m)
-    #     if max_score < score:
-    #         max_score = score
-    #         optimal_k = k
-    # return predictWithK(testFeatures, optimal_k, l, m, trainFeatures, trainLabels)
-    
-    ks = range(5,25) 
-    best_k = -1
-   
-    for k in ks:
-        k_silhouette = find_best_k_silhouette(testFeatures, k)
-        # k_elbow = find_best_k_elbow(testFeatures, k)
-        k_calinski = find_best_k_calinski(testFeatures, k)
-        all_ks = [k_calinski, k_silhouette]
-        best_k = max(set(all_ks), key=all_ks.count) 
-    return predictWithK(testFeatures, best_k)
-
-def find_best_k_silhouette(features, k):
-
-    # Existing silhouette score code
-    best_k = -1
-    best_score = -1
-    labels = predictWithK(features, k)
-    score = silhouette_score(features, labels)
-    return best_k
-
-
-def find_best_k_elbow(features, k):
-    distortions = []
-    cluster_labels = predictWithK(features, k)
-        
-    # Get inertia from KMeans
-    km = KMeans(n_clusters=k)
-    km.fit(features)  
-    distortions.append(km.inertia_)  
-       
-    # Get within cluster sum of squares
-    # linkage_matrix = linkage(features, "ward")
-    # cluster_labels = fcluster(linkage_matrix, k, criterion='maxclust')
-    sse = 0
-    for label in np.unique(cluster_labels):
-           cluster = features[cluster_labels == label]    
-           centroid = cluster.mean(axis=0)
-           sse += ((cluster - centroid)**2).sum()
-           
-    distortions.append(sse)
-
-    plt.plot(k, distortions, 'bx-')
-    plt.xlabel('k')
-    plt.ylabel('Distortion')
-    
-    k_idx = np.argmax(np.diff(np.diff(distortions)))
-    elbow_k = k[k_idx + 2]
-   
-    return elbow_k
-    
-
-
-def find_best_k_calinski(features, k):
-    scores = []  
-    labels = predictWithK(features, k)
-    score = calinski_harabasz_score(features, labels)
-    scores.append(score)
-    return scores[np.argmax(scores)]
+    min_score = math.inf
+    optimal_k = 1
+    for k in np.arange(2, 26, 1):
+        labels = predictWithK(testFeatures, k, l, m, trainFeatures, trainLabels)
+        if np.unique(labels).size > 1:
+            score = davies_bouldin_score(testFeatures, labels)
+            if min_score > score:
+                min_score = score
+                optimal_k = k
+    return predictWithK(testFeatures, optimal_k, l, m, trainFeatures, trainLabels)
 
 # Run this code only if being used as a script, not being imported
 if __name__ == "__main__":
@@ -167,26 +111,27 @@ if __name__ == "__main__":
     
     # numVessels = np.unique(labels).size
 
-    # l_max = None
-    # m_max = None
-    # numVessels = 1
-    # max_score = -math.inf
-    # for l in ("single", "complete", "average", "weighted"):
-    #     for m in ('braycurtis', 'canberra', 'chebyshev', 'cityblock', 'correlation', 'cosine', 'dice', 'euclidean', 'hamming', 'jaccard', 'mahalanobis', 'matching', 'minkowski', 'rogerstanimoto', 'russellrao', 'seuclidean', 'sokalmichener', 'sokalsneath', 'sqeuclidean', 'yule'):
-    #         predVesselsWithoutK = predictWithoutK(features3, l, m)
-    #         predNumVessels = np.unique(predVesselsWithoutK).size
-    #         score = silhouette_score(features3, predVesselsWithoutK, metric=m)
-    #         if max_score < score:
-    #             max_score = score
-    #             l_max = l
-    #             m_max = m
-    #             numVessels = predNumVessels
-    #             print("max_score", max_score, "method", l_max, "metric", m_max, "pred_vessels", predNumVessels)
+    l_max = None
+    m_max = None
+    numVessels = 1
+    min_score = math.inf
+    for l in ("single", "complete", "average", "weighted"):
+        for m in ('braycurtis', 'canberra', 'chebyshev', 'cityblock', 'correlation', 'cosine', 'euclidean', 'hamming', 'jaccard', 'mahalanobis', 'minkowski', 'seuclidean', 'sqeuclidean', 'yule'):
+            predVesselsWithoutK = predictWithoutK(features3, l, m)
+            predNumVessels = np.unique(predVesselsWithoutK).size
+            if predNumVessels > 1:
+                score = davies_bouldin_score(features3, predVesselsWithoutK)
+                if min_score > score:
+                    min_score = score
+                    l_max = l
+                    m_max = m
+                    numVessels = predNumVessels
+                    print("min_score", min_score, "method", l_max, "metric", m_max, "pred_vessels", predNumVessels)
         
-    # print("Final score:", max_score)
-    # print("Final method:", l_max)
-    # print("Final metric:", m_max)
-    # print("Final pred_vessels", numVessels)
+    print("Final score:", min_score)
+    print("Final method:", l_max)
+    print("Final metric:", m_max)
+    print("Final pred_vessels", numVessels)
 
     # predVesselsWithK = predictWithK(features, numVessels)
     # ariWithK = adjusted_rand_score(labels, predVesselsWithK)
