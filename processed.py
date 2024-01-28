@@ -9,7 +9,7 @@ number of vessels is not specified, assume 20 vessels.
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.metrics import adjusted_rand_score
+from sklearn.metrics import adjusted_rand_score, calinski_harabasz_score, davies_bouldin_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans, SpectralClustering, AgglomerativeClustering
 from scipy.cluster.hierarchy import linkage, fcluster, correspond
@@ -41,7 +41,7 @@ def preprocess_data(data):
     dist_diffs = dist_diffs[:, np.newaxis]
 
         # Neighbor speed
-    nn = NearestNeighbors(5).fit(data[:, [1, 2]])
+    nn = NearestNeighbors(n_neighbors=5).fit(data[:, [1, 2]])
     neighbor_indices = nn.kneighbors(data[:, [1, 2]], return_distance=False)[:,1:]
     neighbor_speed = data[neighbor_indices, 3].mean(axis=1)[:, np.newaxis]
     neighbor_course = data[neighbor_indices, 4].mean(axis=1)[:, np.newaxis]
@@ -68,22 +68,45 @@ def predictWithK(testFeatures, numVessels, trainFeatures=None,
     # Unsupervised prediction, so training data is unused
     scaler = MinMaxScaler()
     testFeatures = scaler.fit_transform(testFeatures)
-
     linkage_matrix = linkage(testFeatures, method="complete", metric="correlation")
     predVessels = fcluster(linkage_matrix, numVessels, criterion="maxclust")
+    predict = pd.DataFrame(predVessels)
+    num = predict.nunique()
+    print(num)
+    print(predVessels)
     return predVessels
+
+    # scaler = StandardScaler()
+    # testFeatures = scaler.fit_transform(testFeatures)
+    # km = KMeans(n_clusters=numVessels, init='k-means++', n_init=10, 
+    #             random_state=100)
+    # predVessels = km.fit_predict(testFeatures)
+    # return predVessels
 
 def predictWithoutK(testFeatures, trainFeatures=None, trainLabels=None):
     # Unsupervised prediction, so training data is unused
+    max_score = -math.inf
     
-    # Arbitrarily assume 20 vessels
-    return predictWithK(testFeatures, 20, trainFeatures, trainLabels)
+    for k in np.arange(2, 26, 1):
+        labels = predictWithK(testFeatures, k)
+        if np.unique(labels).size > 1:
+            score = calinski_harabasz_score(testFeatures, labels)
+            print(score)
+            if score > max_score:
+                max_score = score
+                optimal_k = k
+    print(max_score)
+    print(optimal_k) 
+    return predictWithK(testFeatures, optimal_k)
+
+    
+    return predictWithK(testFeatures, 8, trainFeatures, trainLabels)
 
 # Run this code only if being used as a script, not being imported
 if __name__ == "__main__":
     
     from utils import loadData, plotVesselTracks
-    data = loadData('set2.csv')
+    data = loadData('set2noVID.csv')
     features = data[:,2:]
     labels = data[:,1]
     features = preprocess_data(features)
@@ -107,24 +130,24 @@ if __name__ == "__main__":
     # print("ARI:", ari)
     # print("l final:", l_max)
     
-    predVesselsWithK = predictWithK(features, numVessels)
-    ariWithK = adjusted_rand_score(labels, predVesselsWithK)
+    # predVesselsWithK = predictWithK(features, numVessels)
+    # ariWithK = adjusted_rand_score(labels, predVesselsWithK)
 
     # Prediction without specified number of vessels
-    # predVesselsWithoutK = predictWithoutK(features)
-    # predNumVessels = np.unique(predVesselsWithoutK).size
-    # ariWithoutK = adjusted_rand_score(labels, predVesselsWithoutK)
+    predVesselsWithoutK = predictWithoutK(features)
+    predNumVessels = np.unique(predVesselsWithoutK).size
+    ariWithoutK = adjusted_rand_score(labels, predVesselsWithoutK)
     
-    print(f'Adjusted Rand index given K = {numVessels}: {ari}')
-    # print(f'Adjusted Rand index for estimated K = {predNumVessels}: '
-    #       + f'{ariWithoutK}')
+    # print(f'Adjusted Rand index given K = {numVessels}: {ari}')
+    print(f'Adjusted Rand index for estimated K = {predNumVessels}: '
+          + f'{ariWithoutK}')
 
     # Plot vessel tracks colored by prediction and actual labels
-    plotVesselTracks(features[:,[2,1]], predVesselsWithK)
-    plt.title('Vessel tracks by cluster with K')
+    # plotVesselTracks(features[:,[2,1]], predVesselsWithK)
+    # plt.title('Vessel tracks by cluster with K')
     # plotVesselTracks(features[:,[2,1]], predVesselsWithoutK)
     # plt.title('Vessel tracks by cluster without K')
-    plotVesselTracks(features[:,[2,1]], labels)
-    plt.title('Vessel tracks by label')
+    # plotVesselTracks(features[:,[2,1]], labels)
+    # plt.title('Vessel tracks by label')
     # plt.show()
     
